@@ -107,7 +107,7 @@ export async function getKeysFromRelayer(
     let crs;
     try {
       crs = TFHEModule.CompactPkeCrs.safe_deserialize(
-        new Uint8Array(publicParams2048),
+        publicParams2048,
         SERIALIZED_SIZE_LIMIT_CRS,
       );
     } catch (e) {
