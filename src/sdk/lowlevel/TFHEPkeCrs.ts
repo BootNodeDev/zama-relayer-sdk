@@ -172,7 +172,7 @@ export class TFHEPkeCrs {
       return await TFHEPkeCrs.#fetch(params);
     } catch (e) {
       throw new TFHEError({
-        message: 'Impossible to fetch public key: wrong relayer url.',
+        message: 'Failed to fetch CRS',
         cause: e,
       });
     }

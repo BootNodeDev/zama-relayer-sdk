@@ -270,19 +270,19 @@ describeIfFetchMock('TFHEPkeCrs', () => {
     it('throws on invalid params (missing id)', async () => {
       await expect(
         TFHEPkeCrs.fetch({ srcUrl: testUrl, capacity: 2048 } as any),
-      ).rejects.toThrow('Impossible to fetch public key: wrong relayer url.');
+      ).rejects.toThrow('Failed to fetch CRS');
     });
 
     it('throws on invalid params (missing srcUrl)', async () => {
       await expect(
         TFHEPkeCrs.fetch({ id: assetPublicParamsId, capacity: 2048 } as any),
-      ).rejects.toThrow('Impossible to fetch public key: wrong relayer url.');
+      ).rejects.toThrow('Failed to fetch CRS');
     });
 
     it('throws on invalid params (missing capacity)', async () => {
       await expect(
         TFHEPkeCrs.fetch({ id: assetPublicParamsId, srcUrl: testUrl } as any),
-      ).rejects.toThrow('Impossible to fetch public key: wrong relayer url.');
+      ).rejects.toThrow('Failed to fetch CRS');
     });
 
     it('throws on fetch error', async () => {

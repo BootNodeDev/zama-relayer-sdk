@@ -309,7 +309,7 @@ describe('TFHEPkeParams', () => {
             capacity: 2048,
           },
         }),
-      ).rejects.toThrow('Impossible to fetch public key: wrong relayer url.');
+      ).rejects.toThrow('Failed to fetch PKE params');
     });
 
     it('throws on invalid pkeCrs bytes', async () => {
@@ -334,7 +334,7 @@ describe('TFHEPkeParams', () => {
             capacity: 2048,
           },
         }),
-      ).rejects.toThrow('Impossible to fetch public key: wrong relayer url.');
+      ).rejects.toThrow('Failed to fetch PKE params');
     });
   });
 });
