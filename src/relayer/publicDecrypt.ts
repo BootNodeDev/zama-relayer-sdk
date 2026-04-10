@@ -61,7 +61,10 @@ function isThresholdReached(
 
 ////////////////////////////////////////////////////////////////////////////////
 
-function abiEncodeClearValues(
+/**
+ * @internal Exported for unit testing only — not part of the public API.
+ */
+export function abiEncodeClearValues(
   handlesBytes32Hex: `0x${string}`[],
   clearValues: ClearValues,
 ) {
