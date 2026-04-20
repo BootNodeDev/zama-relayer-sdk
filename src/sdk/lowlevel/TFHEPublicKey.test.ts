@@ -285,13 +285,13 @@ describe('TFHEPublicKey', () => {
     it('throws on invalid params (missing id)', async () => {
       await expect(
         TFHEPublicKey.fetch({ srcUrl: testUrl } as any),
-      ).rejects.toThrow('Impossible to fetch public key: wrong relayer url.');
+      ).rejects.toThrow('Failed to fetch public key');
     });
 
     it('throws on invalid params (missing srcUrl)', async () => {
       await expect(
         TFHEPublicKey.fetch({ id: tfhePublicKeyBytes.id } as any),
-      ).rejects.toThrow('Impossible to fetch public key: wrong relayer url.');
+      ).rejects.toThrow('Failed to fetch public key');
     });
 
     it('throws on fetch error', async () => {
@@ -318,7 +318,7 @@ describe('TFHEPublicKey', () => {
           id: tfhePublicKeyBytes.id,
           srcUrl: testUrl,
         }),
-      ).rejects.toThrow('Impossible to fetch public key: wrong relayer url.');
+      ).rejects.toThrow('Failed to fetch public key');
     });
   });
 

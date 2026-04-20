@@ -11,6 +11,7 @@ import {
 } from '@sdk/lowlevel/constants';
 import { fetchRelayerV1Get } from './fetchRelayerV1';
 import { isNonEmptyString, removeSuffix } from '@base/string';
+import { TFHEError } from '../../errors/TFHEError';
 
 // eslint-disable-next-line @typescript-eslint/consistent-type-definitions
 type CachedKey = {
@@ -142,7 +143,8 @@ export async function getKeysFromRelayer(
     keyurlCache[versionUrl] = result;
     return result;
   } catch (e) {
-    throw new Error('Impossible to fetch public key: wrong relayer url.', {
+    throw new TFHEError({
+      message: 'Failed to fetch keys from relayer',
       cause: e,
     });
   }

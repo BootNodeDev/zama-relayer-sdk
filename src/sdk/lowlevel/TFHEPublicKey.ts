@@ -129,7 +129,7 @@ export class TFHEPublicKey {
       return await TFHEPublicKey.#fetch(params);
     } catch (e) {
       throw new TFHEError({
-        message: 'Impossible to fetch public key: wrong relayer url.',
+        message: 'Failed to fetch public key',
         cause: e,
       });
     }

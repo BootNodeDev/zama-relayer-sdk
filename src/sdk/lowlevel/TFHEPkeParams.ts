@@ -166,7 +166,7 @@ export class TFHEPkeParams {
       });
     } catch (e) {
       throw new TFHEError({
-        message: 'Impossible to fetch public key: wrong relayer url.',
+        message: 'Failed to fetch PKE params',
         cause: e,
       });
     }
