@@ -1,5 +1,5 @@
 import type { RelayerGetResponseKeyUrlSnakeCase } from '../types/private';
-import { getKeysFromRelayer } from './networkV1';
+import { getKeysFromRelayer, _clearKeyurlCache } from './networkV1';
 import { tfheCompactPkeCrsBytes, tfheCompactPublicKeyBytes } from '../../test';
 import { SERIALIZED_SIZE_LIMIT_PK } from '../../sdk/lowlevel/constants';
 import fetchMock from 'fetch-mock';
@@ -134,9 +134,22 @@ const payload: RelayerGetResponseKeyUrlSnakeCase = {
 const describeIfFetchMock =
   TEST_CONFIG.type === 'fetch-mock' ? describe : describe.skip;
 
+const pubKeyUrl = payload.response.fhe_key_info[0].fhe_public_key.urls[0];
+const crsUrl = payload.response.crs['2048'].urls[0];
+
 ////////////////////////////////////////////////////////////////////////////////
 
 describeIfFetchMock('network', () => {
+  beforeEach(() => {
+    _clearKeyurlCache();
+    fetchMock.removeRoutes();
+  });
+
+  afterEach(() => {
+    _clearKeyurlCache();
+    fetchMock.removeRoutes();
+  });
+
   it('getKeysFromRelayer', async () => {
     fetchMock.get('https://test-relayer.net/v1/keyurl', payload);
 
@@ -155,5 +168,59 @@ describeIfFetchMock('network', () => {
     expect(
       material.publicKey.safe_serialize(SERIALIZED_SIZE_LIMIT_PK),
     ).toStrictEqual(tfheCompactPublicKeyBytes);
+  });
+
+  it('cache hit: second call returns same object, /keyurl called once', async () => {
+    let keyurlCallCount = 0;
+    fetchMock.get(TEST_CONFIG.v1.urls.keyUrl, () => {
+      keyurlCallCount++;
+      return payload;
+    });
+    fetchMock.get(pubKeyUrl, tfheCompactPublicKeyBytes);
+    fetchMock.get(crsUrl, tfheCompactPkeCrsBytes);
+
+    const r1 = await getKeysFromRelayer(TEST_CONFIG.v1.urls.base);
+    const r2 = await getKeysFromRelayer(TEST_CONFIG.v1.urls.base);
+
+    expect(r1).toBe(r2);
+    expect(keyurlCallCount).toBe(1);
+  });
+
+  it('FIFO eviction: 17th URL evicts url-00', async () => {
+    const keyurlCallCounts: number[] = new Array(17).fill(0) as number[];
+
+    // Asset mocks registered once — all 17 payloads reference the same asset URLs
+    fetchMock.get(pubKeyUrl, tfheCompactPublicKeyBytes);
+    fetchMock.get(crsUrl, tfheCompactPkeCrsBytes);
+
+    // Register 17 unique keyurl mocks
+    for (let n = 0; n < 17; n++) {
+      const idx = n;
+      fetchMock.get(
+        `https://test-relayer.net/url-${String(idx).padStart(2, '0')}/keyurl`,
+        () => {
+          keyurlCallCounts[idx]++;
+          return payload;
+        },
+      );
+    }
+
+    // Fill cache with url-00..url-15 (16 entries)
+    for (let n = 0; n < 16; n++) {
+      await getKeysFromRelayer(
+        `https://test-relayer.net/url-${String(n).padStart(2, '0')}`,
+      );
+    }
+
+    // Insert url-16 — evicts url-00
+    await getKeysFromRelayer('https://test-relayer.net/url-16');
+
+    // url-01 is still in cache (only url-00 was evicted)
+    await getKeysFromRelayer('https://test-relayer.net/url-01');
+    expect(keyurlCallCounts[1]).toBe(1);
+
+    // Re-fetch url-00 — was evicted, must hit network again
+    await getKeysFromRelayer('https://test-relayer.net/url-00');
+    expect(keyurlCallCounts[0]).toBe(2);
   });
 });

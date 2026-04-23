@@ -437,6 +437,89 @@ describeIfFetchMock('RelayerV2Provider - TFHEPkeParams Caching', () => {
     expect(mockTFHEPkeParamsFetch).toHaveBeenCalledTimes(1);
   });
 
+  it('FIFO eviction: 17th provider evicts first provider cache entry', async () => {
+    const BASE_URL = 'https://test-relayer.net/eviction';
+
+    // Register 17 unique /keyurl mocks
+    for (let n = 0; n < 17; n++) {
+      fetchMock.get(
+        `${BASE_URL}/provider-${String(n).padStart(2, '0')}/keyurl`,
+        relayerV1ResponseGetKeyUrl,
+      );
+    }
+
+    // Create 17 providers
+    const providers = Array.from({ length: 17 }, (_, n) =>
+      createRelayerProvider(
+        `${BASE_URL}/provider-${String(n).padStart(2, '0')}`,
+        1,
+      ),
+    );
+
+    // Fetch all 17 — fills the cache to 16 and evicts provider-00 on provider-16
+    for (const provider of providers) {
+      await provider.fetchTFHEPkeParams();
+    }
+
+    expect(mockTFHEPkeParamsFetch).toHaveBeenCalledTimes(17);
+
+    // provider-01 is still in cache (only provider-00 was evicted by provider-16)
+    await providers[1].fetchTFHEPkeParams();
+    expect(mockTFHEPkeParamsFetch).toHaveBeenCalledTimes(17);
+
+    // Re-fetch provider-00 — it was evicted, so spy should be called again
+    await providers[0].fetchTFHEPkeParams();
+    expect(mockTFHEPkeParamsFetch).toHaveBeenCalledTimes(18);
+  });
+
+  it('failed fetch restores evicted entry — cache size stays at 16', async () => {
+    const BASE_URL = 'https://test-relayer.net/eviction-restore';
+    let provider16CallCount = 0;
+
+    // Register successful mocks for provider-00..provider-15
+    for (let n = 0; n < 16; n++) {
+      fetchMock.get(
+        `${BASE_URL}/provider-${String(n).padStart(2, '0')}/keyurl`,
+        relayerV1ResponseGetKeyUrl,
+      );
+    }
+    // provider-16: first call fails, subsequent calls succeed
+    fetchMock.get(`${BASE_URL}/provider-16/keyurl`, () => {
+      provider16CallCount++;
+      if (provider16CallCount === 1) {
+        return { status: 500 };
+      }
+      return relayerV1ResponseGetKeyUrl;
+    });
+
+    const providers = Array.from({ length: 17 }, (_, n) =>
+      createRelayerProvider(
+        `${BASE_URL}/provider-${String(n).padStart(2, '0')}`,
+        1,
+      ),
+    );
+
+    // Fill cache with 16 entries (provider-00..provider-15)
+    for (let n = 0; n < 16; n++) {
+      await providers[n].fetchTFHEPkeParams();
+    }
+    expect(mockTFHEPkeParamsFetch).toHaveBeenCalledTimes(16);
+
+    // Fetch provider-16 — evicts provider-00, but the keyurl request fails.
+    // The evicted entry must be restored so the cache doesn't silently shrink.
+    await expect(providers[16].fetchTFHEPkeParams()).rejects.toThrow();
+    // TFHEPkeParams.fetch was never called for the failed fetch
+    expect(mockTFHEPkeParamsFetch).toHaveBeenCalledTimes(16);
+
+    // provider-00 must be restored in cache — cache hit, spy count stays at 16
+    await providers[0].fetchTFHEPkeParams();
+    expect(mockTFHEPkeParamsFetch).toHaveBeenCalledTimes(16);
+
+    // provider-16 must NOT be in cache — retry triggers a network call
+    await providers[16].fetchTFHEPkeParams();
+    expect(mockTFHEPkeParamsFetch).toHaveBeenCalledTimes(17);
+  });
+
   it('caches separately for different relayer URLs', async () => {
     const testRelayerUrlV2 = TEST_CONFIG.v2.fhevmInstanceConfig.relayerUrl;
     let fetchCount1 = 0;

@@ -11,6 +11,7 @@ import {
 } from '@sdk/lowlevel/constants';
 import { fetchRelayerV1Get } from './fetchRelayerV1';
 import { isNonEmptyString, removeSuffix } from '@base/string';
+import { MAX_KEYURL_CACHE_SIZE } from '../constants';
 
 // eslint-disable-next-line @typescript-eslint/consistent-type-definitions
 type CachedKey = {
@@ -26,7 +27,15 @@ type CachedKey = {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-const keyurlCache: Record<string, CachedKey> = {};
+const keyurlCache = new Map<string, CachedKey>();
+
+/**
+ * Clears the keyurl cache. Exported for testing purposes only.
+ * @internal
+ */
+export function _clearKeyurlCache(): void {
+  keyurlCache.clear();
+}
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -35,8 +44,8 @@ export async function getKeysFromRelayer(
   publicKeyId?: string | null,
   options?: FhevmInstanceOptions,
 ): Promise<CachedKey> {
-  if (versionUrl in keyurlCache) {
-    return keyurlCache[versionUrl];
+  if (keyurlCache.has(versionUrl)) {
+    return keyurlCache.get(versionUrl)!;
   }
 
   const data: RelayerGetResponseKeyUrlSnakeCase = (await fetchRelayerV1Get(
@@ -139,7 +148,10 @@ export async function getKeysFromRelayer(
         },
       },
     };
-    keyurlCache[versionUrl] = result;
+    if (keyurlCache.size >= MAX_KEYURL_CACHE_SIZE) {
+      keyurlCache.delete(keyurlCache.keys().next().value!);
+    }
+    keyurlCache.set(versionUrl, result);
     return result;
   } catch (e) {
     throw new Error('Impossible to fetch public key: wrong relayer url.', {

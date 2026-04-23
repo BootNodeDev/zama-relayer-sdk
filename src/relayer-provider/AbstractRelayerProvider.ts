@@ -38,6 +38,7 @@ import {
 } from '../relayer/error';
 import { setAuth } from './auth/auth';
 import { TFHEPkeParams } from '@sdk/lowlevel/TFHEPkeParams';
+import { MAX_KEYURL_CACHE_SIZE } from './constants';
 import { FhevmHandle } from '@sdk/FhevmHandle';
 import {
   assertIsRelayerGetResponseKeyUrlCamelCase,
@@ -49,7 +50,7 @@ import { uintToHex } from '@base/uint';
 ////////////////////////////////////////////////////////////////////////////////
 
 // Cache promises to avoid race conditions when multiple concurrent calls
-// are made before the first one completes
+// are made before the first one completes.
 const privateKeyurlCache = new Map<string, Promise<TFHEPkeParams>>();
 
 /**
@@ -99,10 +100,23 @@ export abstract class AbstractRelayerProvider {
       return cached;
     }
 
+    // Evict oldest entry when at capacity. Track it so we can restore on failure —
+    // eviction should only take effect when the new fetch succeeds.
+    let evicted: [string, Promise<TFHEPkeParams>] | null = null;
+    if (privateKeyurlCache.size >= MAX_KEYURL_CACHE_SIZE) {
+      const oldestKey = privateKeyurlCache.keys().next().value!;
+      evicted = [oldestKey, privateKeyurlCache.get(oldestKey)!];
+      privateKeyurlCache.delete(oldestKey);
+    }
+
     // Create and cache the promise immediately to prevent race conditions
     const promise = this._fetchTFHEPkeParamsImpl().catch((err: unknown) => {
       // Remove from cache on failure so subsequent calls can retry
       privateKeyurlCache.delete(this.#relayerUrl);
+      // Restore the evicted entry — a failed fetch should not shrink the cache
+      if (evicted !== null) {
+        privateKeyurlCache.set(evicted[0], evicted[1]);
+      }
       throw err;
     });
 
